@@ -1,0 +1,655 @@
+#include <iostream>
+#include <vector>
+#include <string>
+#include <algorithm>
+#include <sstream>
+
+using namespace std;
+
+// ==========================================================
+// 1. ESTRUCTURA DE DATOS: CLASES LIBRO Y USUARIO
+// ==========================================================
+
+/**
+ * @brief Clase para representar un Libro en el inventario.
+ */
+class Libro {
+public:
+    string titulo;
+    string autor;
+    string isbn;
+    string editorial;
+    int anio;
+    int cantidadTotal;
+    int cantidadDisponible;
+
+    Libro(string t, string a, string i, string e, int an, int ct)
+        : titulo(t), autor(a), isbn(i), editorial(e), anio(an), cantidadTotal(ct), cantidadDisponible(ct) {}
+
+    // Función para mostrar la información del libro
+    void mostrarInfo() const {
+        cout << "  - Título: " << titulo << endl;
+        cout << "  - Autor: " << autor << endl;
+        cout << "  - ISBN: " << isbn << endl;
+        cout << "  - Editorial: " << editorial << ", Año: " << anio << endl;
+        cout << "  - Copias Totales: " << cantidadTotal << ", Disponibles: " << cantidadDisponible << endl;
+    }
+};
+
+/**
+ * @brief Clase base para todos los usuarios.
+ */
+class Usuario {
+public:
+    string nombre;
+    string correo;
+    string contrasena;
+    string rol; // "Cliente", "Trabajador", "Administrador", "Dueño"
+
+    Usuario(string n, string c, string p, string r)
+        : nombre(n), correo(c), contrasena(p), rol(r) {}
+
+    // Destructor virtual para la clase base
+    virtual ~Usuario() = default;
+
+    // Función virtual pura para definir la interfaz de cada rol
+    virtual void mostrarMenu() = 0;
+};
+
+// ==========================================================
+// CLASES DERIVADAS DE USUARIO (Para diferenciar roles)
+// Aunque la lógica principal estará en la clase Biblioteca,
+// estas clases permiten la diferenciación de menús y la herencia.
+// ==========================================================
+
+class Cliente : public Usuario {
+public:
+    vector<string> historialPrestamos; // Guarda los ISBN de los libros prestados actualmente
+
+    Cliente(string n, string c, string p) : Usuario(n, c, p, "Cliente") {}
+    void mostrarMenu() override {} // Implementación vacía, la lógica del menú se hace en Biblioteca
+};
+
+class Trabajador : public Usuario {
+public:
+    Trabajador(string n, string c, string p) : Usuario(n, c, p, "Trabajador") {}
+    void mostrarMenu() override {}
+};
+
+class Administrador : public Usuario {
+public:
+    Administrador(string n, string c, string p) : Usuario(n, c, p, "Administrador") {}
+    void mostrarMenu() override {}
+};
+
+class Duenio : public Usuario {
+public:
+    Duenio(string n, string c, string p) : Usuario(n, c, p, "Dueño") {}
+    void mostrarMenu() override {}
+};
+
+
+// ==========================================================
+// 2. CLASE PRINCIPAL: BIBLIOTECA
+// ==========================================================
+
+class Biblioteca {
+private:
+    vector<Libro> inventario;
+    vector<Usuario*> usuarios; // Usamos punteros para almacenar diferentes tipos de Usuario
+
+    /**
+     * @brief Crea los datos iniciales de prueba.
+     */
+    void inicializarDatos() {
+        // --- Libros de Prueba ---
+        inventario.emplace_back("Cien años de soledad", "G. García Márquez", "978-3161484100", "Sudamericana", 1967, 5);
+        inventario.emplace_back("1984", "George Orwell", "978-0451524935", "Secker & Warburg", 1949, 3);
+        inventario.emplace_back("Don Quijote de la Mancha", "Miguel de Cervantes", "978-8424117871", "Francisco de Robles", 1605, 7);
+        inventario.emplace_back("Un mundo feliz", "Aldous Huxley", "978-0060850524", "Chatto & Windus", 1932, 2);
+
+        // --- Usuarios de Prueba (Roles) ---
+        // DUEÑO
+        usuarios.push_back(new Duenio("El Dueño", "dueno@bib.com", "dueno123"));
+
+        // ADMINISTRADORES
+        usuarios.push_back(new Administrador("Admin A", "admin1@bib.com", "admin123"));
+        usuarios.push_back(new Administrador("Admin B", "admin2@bib.com", "admin123"));
+
+        // TRABAJADORES
+        usuarios.push_back(new Trabajador("Empleado T1", "trab1@bib.com", "trabajo123"));
+        usuarios.push_back(new Trabajador("Empleado T2", "trab2@bib.com", "trabajo123"));
+        usuarios.push_back(new Trabajador("Empleado T3", "trab3@bib.com", "trabajo123"));
+
+        // CLIENTES
+        usuarios.push_back(new Cliente("Cliente C1", "cliente1@mail.com", "cliente123"));
+        usuarios.push_back(new Cliente("Cliente C2", "cliente2@mail.com", "cliente123"));
+        usuarios.push_back(new Cliente("Cliente C3", "cliente3@mail.com", "cliente123"));
+        usuarios.push_back(new Cliente("Cliente C4", "cliente4@mail.com", "cliente123"));
+        usuarios.push_back(new Cliente("Cliente C5", "cliente5@mail.com", "cliente123"));
+
+        cout << "--- Datos de prueba cargados (1 Dueño, 2 Admins, 3 Trab, 5 Clientes, 4 Libros) ---\n";
+    }
+
+    /**
+     * @brief Busca un usuario por correo y contraseña.
+     * @return Puntero al Usuario si es encontrado, nullptr si no.
+     */
+    Usuario* buscarUsuario(const string& correo, const string& pass) {
+        for (Usuario* u : usuarios) {
+            if (u->correo == correo && u->contrasena == pass) {
+                return u;
+            }
+        }
+        return nullptr;
+    }
+
+    /**
+     * @brief Busca un libro por su ISBN.
+     * @return Puntero al Libro si es encontrado, nullptr si no.
+     */
+    Libro* buscarLibro(const string& isbn) {
+        for (Libro& l : inventario) {
+            if (l.isbn == isbn) {
+                return &l;
+            }
+        }
+        return nullptr;
+    }
+
+    // ==========================================================
+    // 3. INTERFACES POR ROL (MENÚS Y LÓGICA ESPECÍFICA)
+    // ==========================================================
+
+    void menuCliente(Cliente* cliente) {
+        int opcion;
+        do {
+            cout << "\n========================================\n";
+            cout << "  Bienvenido Cliente: " << cliente->nombre << "\n";
+            cout << "  ROL: " << cliente->rol << "\n";
+            cout << "========================================\n";
+            cout << "1. Buscar y Ver Libros (Disponibilidad)\n";
+            cout << "2. Solicitar Préstamo (Tomar prestado)\n";
+            cout << "3. Devolver Libro\n";
+            cout << "4. Ver mi Historial de Préstamos\n";
+            cout << "0. Cerrar Sesión\n";
+            cout << "Ingrese su opción: ";
+            cin >> opcion;
+
+            switch (opcion) {
+                case 1: listarLibros(false); break;
+                case 2: realizarPrestamo(cliente); break;
+                case 3: realizarDevolucion(cliente); break;
+                case 4: verHistorialCliente(cliente); break;
+                case 0: cout << "Cerrando sesión de Cliente...\n"; break;
+                default: cout << "Opción no válida.\n";
+            }
+        } while (opcion != 0);
+    }
+
+    void menuTrabajador(Trabajador* trabajador) {
+        int opcion;
+        do {
+            cout << "\n========================================\n";
+            cout << "  Bienvenido Trabajador: " << trabajador->nombre << "\n";
+            cout << "  ROL: " << trabajador->rol << "\n";
+            cout << "========================================\n";
+            cout << "1. Consultar Inventario y Disponibilidad\n";
+            cout << "2. Registrar Nuevo Cliente\n";
+            cout << "3. Realizar Préstamo (A nombre del cliente)\n";
+            cout << "4. Realizar Devolución\n";
+            cout << "0. Cerrar Sesión\n";
+            cout << "Ingrese su opción: ";
+            cin >> opcion;
+
+            switch (opcion) {
+                case 1: listarLibros(true); break;
+                case 2: registrarCliente(); break;
+                case 3: realizarPrestamoTrabajador(); break;
+                case 4: realizarDevolucionTrabajador(); break;
+                case 0: cout << "Cerrando sesión de Trabajador...\n"; break;
+                default: cout << "Opción no válida.\n";
+            }
+        } while (opcion != 0);
+    }
+
+    void menuAdministrador(Administrador* admin) {
+        int opcion;
+        do {
+            cout << "\n========================================\n";
+            cout << "  Bienvenido Administrador: " << admin->nombre << "\n";
+            cout << "  ROL: " << admin->rol << "\n";
+            cout << "========================================\n";
+            cout << "1. Añadir Nuevo Libro al Inventario\n";
+            cout << "2. Modificar/Eliminar Libro\n";
+            cout << "3. Gestionar (Crear/Eliminar) Trabajadores\n";
+            cout << "4. Gestionar/Bloquear Clientes\n";
+            cout << "5. Ver Inventario Completo\n";
+            cout << "0. Cerrar Sesión\n";
+            cout << "Ingrese su opción: ";
+            cin >> opcion;
+
+            switch (opcion) {
+                case 1: anadirLibro(); break;
+                case 2: modificarOEliminarLibro(); break;
+                case 3: gestionarTrabajadores(); break;
+                case 4: gestionarClientes(); break;
+                case 5: listarLibros(true); break;
+                case 0: cout << "Cerrando sesión de Administrador...\n"; break;
+                default: cout << "Opción no válida.\n";
+            }
+        } while (opcion != 0);
+    }
+
+    void menuDuenio(Duenio* duenio) {
+        int opcion;
+        do {
+            cout << "\n========================================\n";
+            cout << "  Bienvenido Dueño: " << duenio->nombre << "\n";
+            cout << "  ROL: " << duenio->rol << "\n";
+            cout << "========================================\n";
+            cout << "1. Gestionar (Crear/Eliminar) Administradores\n";
+            cout << "2. Gestionar (Crear/Eliminar) Trabajadores\n";
+            cout << "3. Ver Reporte de Inventario (Detallado)\n";
+            cout << "4. Ver Lista Completa de Usuarios\n";
+            cout << "0. Cerrar Sesión\n";
+            cout << "Ingrese su opción: ";
+            cin >> opcion;
+
+            switch (opcion) {
+                case 1: gestionarAdmins(); break;
+                case 2: gestionarTrabajadores(); break; // El Dueño también puede
+                case 3: listarLibros(true); break;
+                case 4: listarUsuarios(); break;
+                case 0: cout << "Cerrando sesión de Dueño...\n"; break;
+                default: cout << "Opción no válida.\n";
+            }
+        } while (opcion != 0);
+    }
+
+    // --- Funciones de Lógica de Negocio ---
+
+    void listarLibros(bool mostrarTotales) {
+        cout << "\n=== Listado de Libros en Inventario ===\n";
+        if (inventario.empty()) {
+            cout << "  Inventario vacío.\n";
+            return;
+        }
+
+        for (const auto& l : inventario) {
+            cout << "--------------------------------------\n";
+            cout << "  Título: " << l.titulo << endl;
+            cout << "  Autor: " << l.autor << endl;
+            cout << "  ISBN: " << l.isbn << endl;
+            cout << "  Disponibles: " << l.cantidadDisponible;
+            if (mostrarTotales) {
+                cout << " (Total: " << l.cantidadTotal << ")";
+            }
+            cout << endl;
+        }
+        cout << "========================================\n";
+    }
+
+    void realizarPrestamo(Cliente* cliente) {
+        cout << "\n--- Solicitud de Préstamo ---\n";
+        string isbn;
+        cout << "Ingrese el ISBN del libro a prestar: ";
+        cin >> isbn;
+
+        Libro* libro = buscarLibro(isbn);
+        if (!libro) {
+            cout << "ERROR: Libro con ISBN " << isbn << " no encontrado.\n";
+            return;
+        }
+
+        if (libro->cantidadDisponible > 0) {
+            // Verificar si el cliente ya tiene este libro prestado
+            if (find(cliente->historialPrestamos.begin(), cliente->historialPrestamos.end(), isbn) != cliente->historialPrestamos.end()) {
+                 cout << "ADVERTENCIA: Usted ya tiene una copia de \"" << libro->titulo << "\" prestada.\n";
+                 return;
+            }
+
+            libro->cantidadDisponible--;
+            cliente->historialPrestamos.push_back(isbn);
+            cout << "PRÉSTAMO EXITOSO: Se prestó \"" << libro->titulo << "\". Quedan " << libro->cantidadDisponible << " copias.\n";
+        } else {
+            cout << "ERROR: No quedan copias disponibles de \"" << libro->titulo << "\" para prestar.\n";
+        }
+    }
+
+    void realizarDevolucion(Cliente* cliente) {
+        cout << "\n--- Devolución de Libro ---\n";
+        string isbn;
+        cout << "Ingrese el ISBN del libro a devolver: ";
+        cin >> isbn;
+
+        Libro* libro = buscarLibro(isbn);
+        if (!libro) {
+            cout << "ERROR: Libro con ISBN " << isbn << " no encontrado en el sistema.\n";
+            return;
+        }
+
+        // Buscar el ISBN en el historial de préstamos del cliente
+        auto it = find(cliente->historialPrestamos.begin(), cliente->historialPrestamos.end(), isbn);
+
+        if (it != cliente->historialPrestamos.end()) {
+            libro->cantidadDisponible++;
+            cliente->historialPrestamos.erase(it); // Eliminar del historial de préstamos activos
+            cout << "DEVOLUCIÓN EXITOSA: Se devolvió \"" << libro->titulo << "\". Hay " << libro->cantidadDisponible << " copias disponibles.\n";
+        } else {
+            cout << "ERROR: El Cliente " << cliente->nombre << " no tiene registrado el préstamo de este libro.\n";
+        }
+    }
+
+    void verHistorialCliente(Cliente* cliente) {
+        cout << "\n=== Mis Libros Prestados Actualmente (" << cliente->nombre << ") ===\n";
+        if (cliente->historialPrestamos.empty()) {
+            cout << "  No tiene libros prestados actualmente.\n";
+            return;
+        }
+
+        for (const string& isbn : cliente->historialPrestamos) {
+            Libro* libro = buscarLibro(isbn);
+            if (libro) {
+                cout << "  - ISBN: " << isbn << " | Título: " << libro->titulo << " | Autor: " << libro->autor << endl;
+            } else {
+                cout << "  - ERROR: Libro con ISBN " << isbn << " no encontrado en inventario.\n";
+            }
+        }
+        cout << "========================================\n";
+    }
+
+    // --- Funciones de Lógica de Gestión (Trabajador/Admin/Dueño) ---
+
+    void registrarCliente() {
+        string nombre, correo, pass;
+        cout << "\n--- Registro de Nuevo Cliente ---\n";
+        cout << "Nombre: ";
+        cin.ignore();
+        getline(cin, nombre);
+        cout << "Correo (Login): ";
+        cin >> correo;
+        cout << "Contraseña: ";
+        cin >> pass;
+
+        usuarios.push_back(new Cliente(nombre, correo, pass));
+        cout << "CLIENTE REGISTRADO: " << nombre << " con correo " << correo << ".\n";
+    }
+
+    void anadirLibro() {
+        string titulo, autor, isbn, editorial;
+        int anio, total;
+
+        cout << "\n--- Añadir Nuevo Libro ---\n";
+        cin.ignore();
+        cout << "ISBN (Identificador único): ";
+        getline(cin, isbn);
+
+        if (buscarLibro(isbn)) {
+            cout << "ERROR: El ISBN ya existe. Considere modificar el libro existente.\n";
+            return;
+        }
+
+        cout << "Título: ";
+        getline(cin, titulo);
+        cout << "Autor: ";
+        getline(cin, autor);
+        cout << "Editorial: ";
+        getline(cin, editorial);
+        cout << "Año de Publicación: ";
+        cin >> anio;
+        cout << "Cantidad Total de Copias: ";
+        cin >> total;
+
+        inventario.emplace_back(titulo, autor, isbn, editorial, anio, total);
+        cout << "LIBRO AÑADIDO: " << titulo << " con " << total << " copias.\n";
+    }
+
+    void modificarOEliminarLibro() {
+        string isbn;
+        cout << "\n--- Modificar/Eliminar Libro ---\n";
+        cout << "Ingrese el ISBN del libro: ";
+        cin >> isbn;
+
+        Libro* libro = buscarLibro(isbn);
+        if (!libro) {
+            cout << "ERROR: Libro con ISBN " << isbn << " no encontrado.\n";
+            return;
+        }
+
+        cout << "\nLibro Seleccionado: " << libro->titulo << " (ISBN: " << libro->isbn << ")\n";
+        cout << "1. Modificar Cantidad Total\n";
+        cout << "2. Eliminar Libro (Permanente)\n";
+        cout << "0. Cancelar\n";
+        cout << "Opción: ";
+        int op;
+        cin >> op;
+
+        if (op == 1) {
+            int nuevaCantidad;
+            cout << "Ingrese la nueva Cantidad Total: ";
+            cin >> nuevaCantidad;
+            int diferencia = nuevaCantidad - libro->cantidadTotal;
+            libro->cantidadTotal = nuevaCantidad;
+            libro->cantidadDisponible += diferencia; // Ajustar disponibilidad
+
+            if (libro->cantidadDisponible < 0) libro->cantidadDisponible = 0; // Prevenir negativos
+            cout << "CANTIDAD ACTUALIZADA. Total: " << libro->cantidadTotal << ", Disponible: " << libro->cantidadDisponible << endl;
+        } else if (op == 2) {
+            // Eliminar el libro del vector (lógica compleja en vector)
+            inventario.erase(remove_if(inventario.begin(), inventario.end(),
+                [&isbn](const Libro& l) { return l.isbn == isbn; }), inventario.end());
+            cout << "LIBRO ELIMINADO: " << libro->titulo << " ha sido removido del inventario.\n";
+        }
+    }
+
+    void gestionarTrabajadores() {
+        cout << "\n--- Gestión de Trabajadores ---\n";
+        cout << "1. Crear Nuevo Trabajador\n";
+        cout << "2. Eliminar Trabajador\n";
+        cout << "0. Cancelar\n";
+        cout << "Opción: ";
+        int op;
+        cin >> op;
+
+        if (op == 1) {
+            string nombre, correo, pass;
+            cout << "Nombre del Nuevo Trabajador: ";
+            cin.ignore();
+            getline(cin, nombre);
+            cout << "Correo (Login): ";
+            cin >> correo;
+            cout << "Contraseña: ";
+            cin >> pass;
+            usuarios.push_back(new Trabajador(nombre, correo, pass));
+            cout << "TRABAJADOR CREADO: " << nombre << endl;
+        } else if (op == 2) {
+            string correo;
+            cout << "Ingrese el Correo del Trabajador a ELIMINAR: ";
+            cin >> correo;
+            // Usar remove_if para eliminar el usuario del vector
+            usuarios.erase(remove_if(usuarios.begin(), usuarios.end(),
+                [&correo](Usuario* u) { return u->correo == correo && u->rol == "Trabajador"; }), usuarios.end());
+            cout << "Eliminación de Trabajador intentada para: " << correo << ".\n";
+        }
+    }
+
+    void gestionarAdmins() {
+        cout << "\n--- Gestión de Administradores ---\n";
+        cout << "1. Crear Nuevo Administrador\n";
+        cout << "2. Eliminar Administrador\n";
+        cout << "0. Cancelar\n";
+        cout << "Opción: ";
+        int op;
+        cin >> op;
+
+        if (op == 1) {
+            string nombre, correo, pass;
+            cout << "Nombre del Nuevo Administrador: ";
+            cin.ignore();
+            getline(cin, nombre);
+            cout << "Correo (Login): ";
+            cin >> correo;
+            cout << "Contraseña: ";
+            cin >> pass;
+            usuarios.push_back(new Administrador(nombre, correo, pass));
+            cout << "ADMINISTRADOR CREADO: " << nombre << endl;
+        } else if (op == 2) {
+            string correo;
+            cout << "Ingrese el Correo del Administrador a ELIMINAR: ";
+            cin >> correo;
+            usuarios.erase(remove_if(usuarios.begin(), usuarios.end(),
+                [&correo](Usuario* u) { return u->correo == correo && u->rol == "Administrador"; }), usuarios.end());
+            cout << "Eliminación de Administrador intentada para: " << correo << ".\n";
+        }
+    }
+
+    void gestionarClientes() {
+        cout << "\n--- Gestión de Clientes ---\n";
+        cout << "1. Ver Lista de Clientes\n";
+        cout << "2. Eliminar Cliente\n";
+        cout << "0. Cancelar\n";
+        cout << "Opción: ";
+        int op;
+        cin >> op;
+
+        if (op == 1) {
+            cout << "=== Lista de Clientes ===\n";
+            for (Usuario* u : usuarios) {
+                if (u->rol == "Cliente") {
+                    cout << "- " << u->nombre << " (" << u->correo << ")\n";
+                }
+            }
+        } else if (op == 2) {
+            string correo;
+            cout << "Ingrese el Correo del Cliente a ELIMINAR: ";
+            cin >> correo;
+            usuarios.erase(remove_if(usuarios.begin(), usuarios.end(),
+                [&correo](Usuario* u) { return u->correo == correo && u->rol == "Cliente"; }), usuarios.end());
+            cout << "Eliminación de Cliente intentada para: " << correo << ".\n";
+        }
+    }
+
+    void listarUsuarios() {
+        cout << "\n=== Reporte Completo de Usuarios ===\n";
+        if (usuarios.empty()) {
+            cout << "No hay usuarios registrados.\n";
+            return;
+        }
+        for (const auto& u : usuarios) {
+            cout << "  - Rol: " << u->rol << " | Nombre: " << u->nombre << " | Correo: " << u->correo << endl;
+        }
+        cout << "======================================\n";
+    }
+
+    // Funciones de préstamos delegadas a Trabajador (requiere el correo del cliente)
+
+    void realizarPrestamoTrabajador() {
+        string correoCliente;
+        cout << "\n--- Préstamo (Módulo Trabajador) ---\n";
+        cout << "Ingrese el correo del Cliente: ";
+        cin >> correoCliente;
+
+        Usuario* u = buscarUsuario(correoCliente, ""); // Buscamos por correo
+        Cliente* cliente = dynamic_cast<Cliente*>(u);
+
+        if (!cliente) {
+            cout << "ERROR: Cliente con correo " << correoCliente << " no encontrado.\n";
+            return;
+        }
+        
+        realizarPrestamo(cliente);
+    }
+    
+    void realizarDevolucionTrabajador() {
+        string correoCliente;
+        cout << "\n--- Devolución (Módulo Trabajador) ---\n";
+        cout << "Ingrese el correo del Cliente: ";
+        cin >> correoCliente;
+
+        Usuario* u = buscarUsuario(correoCliente, ""); // Buscamos por correo
+        Cliente* cliente = dynamic_cast<Cliente*>(u);
+
+        if (!cliente) {
+            cout << "ERROR: Cliente con correo " << correoCliente << " no encontrado.\n";
+            return;
+        }
+        
+        realizarDevolucion(cliente);
+    }
+
+
+public:
+    Biblioteca() {
+        inicializarDatos();
+    }
+
+    ~Biblioteca() {
+        // Liberar la memoria de los punteros de Usuario
+        for (Usuario* u : usuarios) {
+            delete u;
+        }
+    }
+
+    /**
+     * @brief Inicia el proceso de login.
+     */
+    void iniciar() {
+        int opcion;
+        do {
+            cout << "\n########################################\n";
+            cout << "### BIENVENIDO AL SISTEMA BIBLIOTECA ###\n";
+            cout << "########################################\n";
+            cout << "1. Iniciar Sesión\n";
+            cout << "0. Salir del Sistema\n";
+            cout << "Ingrese su opción: ";
+            cin >> opcion;
+
+            if (cin.fail()) { // Manejo de entrada inválida
+                cin.clear();
+                cin.ignore(10000, '\n');
+                cout << "Entrada no válida. Intente de nuevo.\n";
+                opcion = -1; 
+                continue;
+            }
+
+            if (opcion == 1) {
+                string correo, contrasena;
+                cout << "Ingrese su correo: ";
+                cin >> correo;
+                cout << "Ingrese su contraseña: ";
+                cin >> contrasena;
+
+                Usuario* usuarioActual = buscarUsuario(correo, contrasena);
+
+                if (usuarioActual) {
+                    cout << "LOGIN EXITOSO. Rol: " << usuarioActual->rol << "\n";
+                    if (usuarioActual->rol == "Cliente") {
+                        menuCliente(dynamic_cast<Cliente*>(usuarioActual));
+                    } else if (usuarioActual->rol == "Trabajador") {
+                        menuTrabajador(dynamic_cast<Trabajador*>(usuarioActual));
+                    } else if (usuarioActual->rol == "Administrador") {
+                        menuAdministrador(dynamic_cast<Administrador*>(usuarioActual));
+                    } else if (usuarioActual->rol == "Dueño") {
+                        menuDuenio(dynamic_cast<Duenio*>(usuarioActual));
+                    }
+                } else {
+                    cout << "ERROR: Correo o Contraseña incorrectos.\n";
+                }
+            } else if (opcion != 0) {
+                cout << "Opción no válida.\n";
+            }
+        } while (opcion != 0);
+        cout << "Gracias por usar el Sistema de Biblioteca. ¡Adiós!\n";
+    }
+};
+
+// ==========================================================
+// 4. FUNCIÓN PRINCIPAL (main)
+// ==========================================================
+
+int main() {
+    Biblioteca app;
+    app.iniciar();
+    return 0;
+}
